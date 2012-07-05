@@ -1,0 +1,25 @@
+Intro:
+Featherweights allows the Twitter followers of Suki and Verb, two house cats, to vie for a chance opportunity to play
+online. When one of the cats enters the Featherdome, they are uniquely identified by their collar-worn RFID tags.
+This event enables the cats to tweet their desire to play.
+Each tweet contains an inviting message from either Suk or Verb, a candid snapshot of their entry, and a single-serve
+link which awards the first visitor the prized play session.
+That lucky follower is presented with a live video feed from within the Featherdome and the controls to a motorized toy.
+This Human-Cat Interaction over Internet Protocol (HCIoIP) continues until the one of the participants, typically the
+felid, decides it has had enough, whereupon the session ends.
+
+Solution Stack:
+The Arduino Uno receives serial input from the RFID tag reader, sends commands to the toy, and interfaces with Python
+using Pyserial.
+Python posts tweets with Tweepy and facilitates asynchronous communication between Arduino and PHP via an Internet
+socket.
+All of the above and the IP camera are hosted on a router serving as an embedded system with DD-WRT
+To reduce load on the limited resources of the embedded system and local internet connection, an external webserver with
+Apache and MySQL is used.
+This server hosts the database, PHP scripts, and static assets that facilitate game sessions, and receives AJAX posts
+from the jQuery user interface allowing control of the toy.
+
+Acknowledgments: 
+Arduino Candygrabber
+Uberfridge
+WiFi for Arduino with Asus WL-520gu
