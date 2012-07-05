@@ -1,0 +1,12 @@
+<files .htaccess>
+	order allow,deny
+	deny from all
+</files>
+
+ErrorDocument 400 http://fthrwghts.com/index
+ErrorDocument 401 http://fthrwghts.com/index
+ErrorDocument 403 http://fthrwghts.com/index
+ErrorDocument 404 http://fthrwghts.com/index
+ErrorDocument 500 http://fthrwghts.com/index
+
+Options +MultiViews

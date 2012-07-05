@@ -1,0 +1,153 @@
+export LD_PRELOAD=/opt/lib/libuClibc-0.9.28.so
+#!/bin/sh
+##############################################################################
+## xinetd
+## Written by: JP van Melis
+##
+OPTWARE_TARGET=ddwrt
+export LD_LIBRARY_PATH=/opt/lib:/opt/usr/lib:$LD_LIBRARY_PATH
+export PATH=/opt/bin:/opt/sbin:/opt/usr/sbin:$PATH
+NAME=xinetd
+
+ht=`echo -e '\011'`
+cr=`echo -e '\015'`
+
+# ANSI codes
+green="\033[32;40;1m"
+red="\033[31;40;1m"
+yellow="\033[33;40;1m"
+white="\033[37;40;1m"
+grey="\033[0m"
+
+#
+# Startup script for xinetd
+#
+# Stop myself if running
+
+if [ -z "$1" ] ; then
+    case `echo "$0" | sed 's:^.*/\(.*\):\1:g'` in
+        S??*) rc="start" ;;
+        K??*) rc="stop" ;;
+        *) rc="usage" ;;
+    esac
+else
+    rc="$1"
+fi
+
+if ! grep -q nobody /etc/group ; then
+  optlog "$NAME" "Adding nobody to /etc/group"
+  echo "nobody:x:99:" >> /etc/group
+fi
+if ! grep -q nobody /etc/passwd ; then
+  optlog "$NAME" "Adding nobody to /etc/passwd"
+  echo "nobody:*:99:99:nobody:/var:/bin/false" >> /etc/passwd
+fi
+
+# Start/Stop/Status samba
+case "$rc" in
+	status)
+		if [ -z "`pidof xinetd`" ] ; then
+			echo "xinetd not running"
+		else
+			echo -n "xinetd is running"
+			netstat -lp --numeric-hosts 2>/dev/null >/tmp/netstat
+                        if [ $? -eq 0 ] ; then
+			  grep xinetd /tmp/netstat | grep "^[tru][cda]" >/tmp/.netstat
+			  grep xinetd /tmp/.netstat | awk -F: '{print $2}' | awk '{print $1}' | uniq >/tmp/xinservices
+			  if [ -s /tmp/.netstat ] ; then
+                            echo " and handling these services:"
+			    while read xinservice ; do
+			      echo -n "" >/tmp/xinfiles
+			      grep -l "service.*${xinservice}$" /opt/etc/xinetd.d/* >/tmp/.xinfiles
+			      while read xinfile ; do
+			        grep -q "disable.*=.*[Yy]" $xinfile || echo "$xinfile" >>/tmp/xinfiles
+			      done</tmp/.xinfiles
+			      xinetconfigs=`cat /tmp/xinfiles | wc -l`
+			      netstatentries=`grep "${xinservice}" /tmp/.netstat | wc -l`
+			      echo -e "service : ${white}${xinservice}${grey}"
+			      if [ ${netstatentries} -ne ${xinetconfigs} ] ; then
+			        # Show only netstat entries if I can't find all the configs in /opt/etc/xinetd.d/
+			        echo -en "${green}"
+			        grep ":${xinservice}" /tmp/.netstat | sed 's/    0      0//' | cut -b1-45
+			        echo -en "${grey}"
+			      else
+				while read netstatline ; do
+			          nstatcut="`echo "${netstatline}" | sed 's/    0      0//' | cut -b1-45`"
+			          if echo "${nstatcut}" | grep -q ":${xinservice}" ; then
+			            echo -ne "${green}${nstatcut}${grey}"
+
+			            nlineaddress=`echo "${nstatcut}" | awk '{print $2}' | awk -F: '{print $1}'`
+				    if [ $xinetconfigs -eq 1 ] ; then
+				      f=`cat /tmp/xinfiles`
+				    else
+			              nlineaddress=`echo "${nstatcut}" | awk '{print $2}' | awk -F: '{print $1}'`
+				      while read f ; do
+				        grep -q "${nlineaddress}" $f && break
+			              done</tmp/xinfiles
+			            fi
+			            if [ -f $f ] ; then
+				      server="`grep "server[ ${ht}]" $f | awk -F= '{print $2}'`"
+				      args="`grep "server_args.*=" $f   | awk -F= '{print $2}'`"
+			              echo -en "${white}${server}${yellow}${args}${grey}"
+				    fi
+			            echo ""
+			          fi
+			        done</tmp/.netstat
+			      fi
+			    done</tmp/xinservices
+			    rm /tmp/xinservices
+			    # rm /tmp/xinfiles
+                          else
+			    echo -n " but not handling services"
+                          fi
+			  rm /tmp/.netstat
+			fi
+			echo ""
+                        rm /tmp/netstat
+		fi
+		;;
+	start)
+		if [ -n "`pidof xinetd`" ] ; then
+			echo "xinetd already running"
+		else
+			# turn p910nd off/on in /opt/etc/xinetd.d/p910nd
+			if [ -f /opt/etc/xinetd.d/p910nd ] ; then
+				if [ -e /dev/usb/lp0 ] ; then
+					if grep disable /opt/etc/xinetd.d/p910nd | grep -iq yes ; then
+					  optlog "$NAME" "Enable p910nd because I found a printer"
+					  sed -i -e "s/disable.*/disable = no/" /opt/etc/xinetd.d/p910nd
+					fi
+				else
+					if grep disable /opt/etc/xinetd.d/p910nd | grep -iq no ; then
+					  optlog "$NAME" "Disable p910nd because no printer is found"
+					  sed -i -e "s/disable.*/disable = yes/" /opt/etc/xinetd.d/p910nd
+					fi
+				fi
+			fi
+			optlog "$NAME" "Start xinetd"
+			/opt/sbin/xinetd
+		fi
+		;;
+	stop)
+		if [ -z "`pidof xinetd`" ] ; then
+			echo "xinetd is not running"
+		else
+			optlog "$NAME" "Stop xinetd"
+			
+			n=1
+			signal=15
+			while [ $n -lt 10 ] ; do
+				killall -${signal} xinetd 2>/dev/null
+				[ $n -eq 4 ] && signal=9
+				[ -z "`pidof xinetd`" ] && break
+				sleep 3
+				let n+=1
+			done
+		fi
+		;;
+	restart)
+		killall xinetd 2>/dev/null
+		optlog "$NAME" "Restart xinetd"
+		/opt/sbin/xinetd
+		;;
+esac
